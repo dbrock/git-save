@@ -1,0 +1,30 @@
+#!/bin/bash
+
+set -e
+
+function working-directory-dirty {
+  [[ -n "$(git status --porcelain 2>/dev/null)" ]]
+}
+
+function shellquote {
+  ruby -r shellwords -e 'puts ARGV.shelljoin' "$@"
+}
+
+if working-directory-dirty; then
+  echo Your working directory is dirty && exit 1
+fi
+
+if [[ $# = 0 ]]; then
+  echo Usage: git do COMMAND [ARGS...] && exit 1
+elif [[ $# = 1 ]]; then
+  command="$1"
+else
+  command="$(shellquote "$@")"
+fi
+
+sh -c "$command"
+
+if working-directory-dirty; then
+  git add -A
+  git commit -m "git do $command"
+fi
