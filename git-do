@@ -26,5 +26,5 @@ sh -c "$command"
 
 if working-directory-dirty; then
   git add -A
-  git commit -m "git do $command"
+  git commit -m "\$ $command"
 fi
