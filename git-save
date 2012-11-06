@@ -1,0 +1,41 @@
+#!/bin/bash
+
+set -e
+
+function --no-commit { test -n "$no_commit"; }
+function --all { test -n "$all"; }
+function --run-command { (cd `git rev-parse --show-cdup` && $1); }
+function --help { echo "Usage: $0 [-n] [-a|-u] [-c COMMAND]"; }
+
+function main {
+  while test $# != 0; do
+    case $1 in
+      --no-commit|-n) shift && no_commit=yes ;;
+      --all|-a)       shift && all=yes ;;
+      --update|-u)    shift && all= ;;
+      --command|-c)   shift && command="$1" && --run-command "$1" ;;
+      --help)         --help && exit 0 ;;
+      *)              --help && exit 1 ;;
+    esac
+  done
+
+  --all && git add -a || git add -u
+  --no-commit && --print-message && exit 0
+  git commit -m "`--print-message`"
+}
+
+function --print-message {
+  if test -n "$command"; then
+    echo "sh -c '$command'"
+  else
+    stat=`git diff --cached --stat`
+    if test `echo "$stat" | wc -l` = 2; then
+      symbol=`git diff --cached --name-status | cut -c1`
+      echo "`printf %-2s $symbol`" `echo "$stat" | head -1`
+    else
+      echo "$stat" | tail -1
+    fi
+  fi
+}
+
+main "$@"
