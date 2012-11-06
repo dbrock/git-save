@@ -2,27 +2,38 @@
 
 set -e
 
-function --no-commit { test -n "$no_commit"; }
-function --all { test -n "$all"; }
-function --run-command { (cd `git rev-parse --show-cdup` && $1); }
-function --help { echo "Usage: $0 [-n] [-a|-u] [-c COMMAND]"; }
+function --help {
+  echo "Usage: $0 [-n|--dry-run] [-a|-u] [-c COMMAND]"
+}
+
+declare -a add_flags
 
 function main {
   while test $# != 0; do
     case $1 in
-      --no-commit|-n) shift && no_commit=yes ;;
-      --all|-a)       shift && all=yes ;;
-      --update|-u)    shift && all= ;;
-      --command|-c)   shift && command="$1" && --run-command "$1" ;;
-      --help)         --help && exit 0 ;;
-      *)              --help && exit 1 ;;
+      -n) shift && dry_run=yes ;;
+      -a) shift && add_flags+=(-a) ;;
+      -u) shift && add_flags+=(-u) ;;
+      -c) shift && command="$1" ;;
+      --help) --help && exit 0 ;;
+      *) --help && exit 1 ;;
     esac
   done
 
-  --all && git add -a || git add -u
-  --no-commit && --print-message && exit 0
-  git commit -m "`--print-message`"
+  test -n "$command" && --run-command "$command"
+  --should-add && git add `--add-flags`
+
+  if test -n "$dry_run"; then
+    --print-message
+  else
+    git commit -m "`--print-message`"
+  fi
 }
+
+function --should-add { --index-clean || test -n "${add_flags[*]}"; }
+function --add-flags { echo ${add_flags[*]--u}; }
+function --index-clean { test -z "`git diff --cached --shortstat`"; }
+function --run-command { (cd `git rev-parse --show-cdup` && $1); }
 
 function --print-message {
   if test -n "$command"; then
