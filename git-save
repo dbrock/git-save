@@ -33,7 +33,7 @@ function main {
 function --should-add { --index-clean || test -n "${add_flags[*]}"; }
 function --add-flags { echo ${add_flags[*]--u}; }
 function --index-clean { test -z "`git diff --cached --shortstat`"; }
-function --run-command { (cd `git rev-parse --show-toplevel` && $1); }
+function --run-command { (cd "`git rev-parse --show-toplevel`" && $1); }
 
 function --print-message {
   if test -n "$command"; then
