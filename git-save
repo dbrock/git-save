@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -x
 
 set -e
 
@@ -14,7 +14,7 @@ function main {
       -n) shift && dry_run=yes ;;
       -a) shift && add_flags+=(-a) ;;
       -u) shift && add_flags+=(-u) ;;
-      -c) shift && command="$1" ;;
+      -c) shift && command="$1" && shift ;;
       --help) --help && exit 0 ;;
       *) --help && exit 1 ;;
     esac
@@ -33,7 +33,7 @@ function main {
 function --should-add { --index-clean || test -n "${add_flags[*]}"; }
 function --add-flags { echo ${add_flags[*]--u}; }
 function --index-clean { test -z "`git diff --cached --shortstat`"; }
-function --run-command { (cd `git rev-parse --show-cdup` && $1); }
+function --run-command { (cd `git rev-parse --show-toplevel` && $1); }
 
 function --print-message {
   if test -n "$command"; then
