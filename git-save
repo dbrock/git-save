@@ -2,7 +2,7 @@
 set -e && if [[ $1 = --debug ]]; then shift && set -x; fi
 
 USAGE='git save [-u|-A] [-c COMMAND]
-git save --redo
+git save --redo-last | --redo-since=BASE
 
  
 Commit changes with a standard message, given by git-summary(1).
@@ -13,32 +13,37 @@ the resulting changes, using "$ COMMAND" as the commit message.
  
 If neither `-u`, `-A` nor `-c` were given, and the index is
 already clean, then invoke `git add -u` first.
+
+The `--redo-last` option recreates the last commit from scratch,
+whereas `--redo-since` is used to start an interactive rebase.
  
 git-save(1) prefixes all its commit messages with `~`.
 --
-u,update         Run `git add -u` first
-A,all            Run `git add -A` first
+u                Run `git add -u` first
+A                Run `git add -A` first
  
-c,command=       Run `sh -c COMMAND` first
+c,command=       Commit the results of `sh -c CMD`
  
-R,redo           Redo the last commit
-
+R,redo-last      Redo the last commit from scratch
+redo-since=      Redo all git-save commits since BASE
+ 
 debug            Run in debug mode
 '
 eval "$(git rev-parse --parseopt -- "$@" <<< "$USAGE" || exit $?)"
 
-add_options=() redo=false
+add_options=() redo_last=false
 while test $# != 0; do
   case $1 in
     -u|-A) add_options+=($1) && shift ;;
     -c) command=$2 && shift && shift ;;
-    -R) redo=true && shift ;;
+    -R) redo_last=true && shift ;;
+    --redo-since) redo_base=$2 && shift && shift ;;
     --) shift ;;
     *) echo Unknown option: $1 >&2 && exit 1 ;;
   esac
 done
 
-if $redo; then
+if $redo_last; then
   if [[ $command || $add_options ]]; then
     echo $0: -R is incompatible with -u, -A and -c >&2 && exit 1
   else
@@ -49,7 +54,10 @@ if $redo; then
       git reset --hard HEAD^
       git save -A -c "$command"
     elif [[ $message =~ ^~(.*) ]]; then
-      summary=`git-summary HEAD^ HEAD`
+      if git rev-parse HEAD^ >/dev/null 2>&1
+      then parent=HEAD^
+      else parent=`git hash-object -t tree /dev/null`; fi
+      summary=`git-summary $parent HEAD`      
       if [[ $message = "~$summary" ]]; then
         echo "git-save: patch summary up-to-date"
       else
@@ -57,9 +65,11 @@ if $redo; then
         git commit --amend -m "~$summary"
       fi
     else
-      :
+      echo "git-save: skip"
     fi
   fi
+elif [[ $redo_base ]]; then
+  git rebase -i -x 'git save --redo-last' $redo_base --onto $redo_base
 else
   function --index-clean {
     git diff-index --cached --quiet HEAD
