@@ -1,52 +1,62 @@
 #!/bin/bash
 
-set -e
+set -ex
 
-function --help {
-  echo "Usage: $0 [-n|--dry-run] [-a|-u] [-c COMMAND]"
-}
+MESSAGE_PREFIX=\~
+USAGE='git save [-u|-A] [-c COMMAND]
 
-declare -a add_flags
+ 
+Commit changes with a standard message, given by git-summary(1).
+With `-u` or `-A`, first update the index using git-add(1).
+ 
+If invoked with `-c COMMAND`, run COMMAND in a shell and commit
+the resulting changes, using "$ COMMAND" as the commit message.
+ 
+If neither `-u`, `-A` nor `-c` were given, and the index is
+already clean, then invoke `git add -u` first.
+ 
+git-save(1) prefixes all its commit messages with `'"$MESSAGE_PREFIX"'`.
+--
+u,update     Run `git add -u` first
+A,all        Run `git add -A` first
+ 
+c,command    Run `sh -c COMMAND` first
+'
 
-function main {
-  while test $# != 0; do
-    case $1 in
-      -n) shift && dry_run=yes ;;
-      -a) shift && add_flags+=(-A) ;;
-      -u) shift && add_flags+=(-u) ;;
-      -c) shift && command="$1" && shift ;;
-      --help) --help && exit 0 ;;
-      *) --help && exit 1 ;;
-    esac
-  done
+eval "$(git rev-parse --parseopt -- "$@" <<< "$USAGE" || exit $?)"
 
-  test -n "$command" && --run-command "$command"
-  --should-add && git add `--add-flags`
+add_options=()
 
-  if test -n "$dry_run"; then
-    --print-message
+while test $# != 0; do
+  case $1 in
+    -u|-A) add_options+=($1) && shift ;;
+    -c) command=$2 && shift 2 ;;
+    --) shift ;;
+    *) exit 1 ;;
+  esac
+done
+
+function --index-clean { git diff-index --cached --quiet HEAD; }
+
+if [[ $command ]]; then
+  if test -z "`git status --short`"; then
+    (cd "`git rev-parse --show-toplevel`" && sh -c "$command")
+    git add ${add_options[*]--u}
   else
-    git commit -m "`--print-message`"
+    echo You have uncommited changes >&2 && exit 1
+  fi
+elif [[ $add_options ]]; then
+  git add ${add_options[*]}
+elif --index-clean; then
+  git add -u
+fi
+
+function --commit-message {
+  if [[ $command ]]; then
+    printf '$ %s' "$command"
+  else
+    git summary --cached
   fi
 }
 
-function --should-add { --index-clean || test -n "${add_flags[*]}"; }
-function --add-flags { echo ${add_flags[*]--u}; }
-function --index-clean { test -z "`git diff --cached --shortstat`"; }
-function --run-command { (cd "`git rev-parse --show-toplevel`" && $1); }
-
-function --print-message {
-  if test -n "$command"; then
-    echo "\$ $command"
-  else
-    stat=`git diff --cached --stat`
-    if test `echo "$stat" | wc -l` = 2; then
-      symbol=`git diff --cached --name-status | cut -c1`
-      echo "`printf %-2s $symbol`" `echo "$stat" | head -1`
-    else
-      echo "$stat" | tail -1
-    fi
-  fi
-}
-
-main "$@"
+git commit -m "$MESSAGE_PREFIX`--commit-message`"
