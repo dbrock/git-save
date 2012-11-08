@@ -99,7 +99,7 @@ else
 
   if [[ $command ]]; then
     if test -z "`git status --short`"; then
-      (cd "`git rev-parse --show-toplevel`" && sh -c "$command")
+      (cd "`git rev-parse --show-toplevel`" && sh -c "$command") || exit 1
       git add ${add_options[*]--u}
     else
       abort 'You have uncommited changes'
