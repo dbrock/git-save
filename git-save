@@ -1,9 +1,11 @@
 #!/bin/bash
 set -e && if [[ $1 = --debug ]]; then shift && set -x; fi
 
+function abort { printf '%s\n' "$*" && echo 1; }
+
 USAGE='git save [-u|-A] [-c COMMAND]
-git save --redo-last | --redo-since=BASE | --redo-all
-git save --root
+git save --redo-last | --redo-since=BASE
+git save --make-root | --show-root | --redo-all
 
  
 Commit changes with a standard message, given by git-summary(1).
@@ -18,7 +20,7 @@ already clean, then invoke `git add -u` first.
 The `--redo-last` option recreates the last commit from scratch,
 whereas `--redo-since` is used to start an interactive rebase in
 which every commit is re-done.  The `--redo-all` option searches
-for a specific kind of base commit created by `git save --root`.
+for a specific kind of base commit created by `--make-root`.
  
 git-save(1) prefixes all its commit messages with `~`.
 --
@@ -31,7 +33,8 @@ redo-last        Redo the last commit from scratch
 redo-since=      Redo all commits since BASE
 
 redo-all         Redo all commits since the last root commit
-root             Create a root commit (an empty commit marked `~`)
+make-root        Create a root commit (an empty commit marked `~`)
+show-root        Show the last root commit
  
 debug            Run in debug mode
 '
@@ -39,9 +42,9 @@ eval "$(git rev-parse --parseopt -- "$@" <<< "$USAGE" || exit $?)"
 
 add_options=()
 
-function --root { git commit --allow-empty -m\~; }
+function --make-root { git commit --allow-empty -m\~; }
 if [[ $1 == -- ]] && ! `git rev-parse HEAD >/dev/null 2>&1`; then
-  echo git-save: adding empty root commit && --root
+  echo 'git-save: inserting empty root commit' && --make-root
 fi
 
 while test $# != 0; do
@@ -49,43 +52,44 @@ while test $# != 0; do
     -u|-A) add_options+=($1) && shift ;;
     -c) command=$2 && shift && shift ;;
     --redo-last) redo_last=true && shift ;;
-    --redo-since) redo_base=$2 && shift && shift ;;
-    --root) root=true && shift ;;
+    --redo-since) redo_since=$2 && shift && shift ;;
+    --make-root) --make-root && shift ;;
     --redo-all) redo_all=true && shift ;;
+    --show-root) show_root=true && shift ;;
     --) shift ;;
-    *) echo Unknown option: $1 >&2 && exit 1 ;;
+    *) abort "Unknown option: $1" ;;
   esac
 done
 
-if [[ $root ]]; then
-  --root
-elif [[ $redo_last ]]; then
-  if [[ $command || $add_options ]]; then
-    echo $0: -R is incompatible with -u, -A and -c >&2 && exit 1
-  else
-    message=`git log --format=%s -n1`
-    if [[ $message =~ ^~\$\ (.*) ]]; then
-      command=${BASH_REMATCH[1]}
-      echo "git-save:~\$ $command"
-      git reset --hard HEAD^
-      git save -A -c "$command"
-    elif [[ $message =~ ^~(.*) ]]; then
-      if git rev-parse HEAD^ >/dev/null 2>&1
-      then parent=HEAD^
-      else parent=`git hash-object -t tree /dev/null`; fi
-      summary=`git-summary $parent HEAD`      
-      if [[ $message = "~$summary" ]]; then
-        echo "git-save: patch summary up-to-date"
-      else
-        echo "git-save: updating patch summary"
-        git commit --amend -m "~$summary"
-      fi
+if [[ $redo_last ]]; then
+  message=`git log --format=%s -n1`
+  if [[ $message =~ ^~\$\ (.*) ]]; then
+    command=${BASH_REMATCH[1]}
+    echo "git-save:~\$ $command"
+    git reset --hard HEAD^
+    git save -A -c "$command"
+  elif [[ $message =~ ^~(.*) ]]; then
+    if git rev-parse HEAD^ >/dev/null 2>&1
+    then parent=HEAD^
+    else parent=`git hash-object -t tree /dev/null`; fi
+    summary=`git-summary $parent HEAD`      
+    if [[ $message = "~$summary" ]]; then
+      echo "git-save: patch summary up-to-date"
     else
-      echo "git-save: skip"
+      echo "git-save: updating patch summary"
+      git commit --amend -m "~$summary"
     fi
+  else
+    echo "git-save: skip"
   fi
-elif [[ $redo_base ]]; then
-  git rebase -i -x 'git save --redo-last' $redo_base --onto $redo_base
+elif [[ $redo_since ]]; then
+  git rebase -i -x 'git save --redo-last' $redo_since --onto $redo_since
+elif [[ $redo_all ]]; then
+  root=`git save --show-root`
+  git save --redo-since=$root
+elif [[ $show_root ]]; then
+  git log --grep='^~$' --format=%h ||
+  abort 'Could not find root commit (message should be `~`)'
 else
   function --index-clean {
     git diff-index --cached --quiet HEAD
@@ -96,7 +100,7 @@ else
       (cd "`git rev-parse --show-toplevel`" && sh -c "$command")
       git add ${add_options[*]--u}
     else
-      echo You have uncommited changes >&2 && exit 1
+      abort 'You have uncommited changes'
     fi
   elif [[ $add_options ]]; then
     git add ${add_options[*]}
