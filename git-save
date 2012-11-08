@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -ex
+set -e
 
 MESSAGE_PREFIX=\~
 USAGE='git save [-u|-A] [-c COMMAND]
