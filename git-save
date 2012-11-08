@@ -71,6 +71,8 @@ if [[ $redo_last ]]; then
     echo "git-save:~\$ $command"
     git reset --hard HEAD^
     git save -A -c "$command"
+  elif [[ $message = '~' ]]; then
+    echo "git-save: skip root commit"
   elif [[ $message =~ ^~(.*) ]]; then
     if git rev-parse HEAD^ >/dev/null 2>&1
     then parent=HEAD^
