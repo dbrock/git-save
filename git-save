@@ -2,8 +2,8 @@
 
 set -e
 
-MESSAGE_PREFIX=\~
 USAGE='git save [-u|-A] [-c COMMAND]
+git save --redo
 
  
 Commit changes with a standard message, given by git-summary(1).
@@ -15,30 +15,55 @@ the resulting changes, using "$ COMMAND" as the commit message.
 If neither `-u`, `-A` nor `-c` were given, and the index is
 already clean, then invoke `git add -u` first.
  
-git-save(1) prefixes all its commit messages with `'"$MESSAGE_PREFIX"'`.
+git-save(1) prefixes all its commit messages with `~`.
 --
-u,update     Run `git add -u` first
-A,all        Run `git add -A` first
+u,update         Run `git add -u` first
+A,all            Run `git add -A` first
  
-c,command    Run `sh -c COMMAND` first
+c,command        Run `sh -c COMMAND` first
+ 
+R,redo           Redo the last commit
+
+debug            Run in debug mode
 '
 
 eval "$(git rev-parse --parseopt -- "$@" <<< "$USAGE" || exit $?)"
 
-add_options=()
-
+add_options=() redo=false
 while test $# != 0; do
   case $1 in
     -u|-A) add_options+=($1) && shift ;;
     -c) command=$2 && shift 2 ;;
+    -R) redo=true && shift ;;
+    --debug) shift && set -x ;;
     --) shift ;;
-    *) exit 1 ;;
+    *) echo Unknown option: $1 >&2 && exit 1 ;;
   esac
 done
 
 function --index-clean { git diff-index --cached --quiet HEAD; }
 
-if [[ $command ]]; then
+if $redo; then
+  if [[ $command || $add_options ]]; then
+    echo $0: -R is incompatible with -u, -A and -c >&2 && exit 1
+  else
+    message=`git log --format=%s -n1`
+    if [[ $message =~ ^~$\ (.*) ]]; then
+      command=${BASH_REMATCH[1]}
+      echo "git-save: redoing command: $command"
+      git reset --hard HEAD^
+      git save -c "$command"
+    elif [[ $message =~ ^~(.*) ]]; then
+      summary=`git-summary HEAD HEAD^`
+      if [[ $message != "~$summary" ]]; then
+        echo "git-save: updating patch summary"
+        git commit --amend -m "$summary"
+      fi
+    else
+      :
+    fi
+  fi
+elif [[ $command ]]; then
   if test -z "`git status --short`"; then
     (cd "`git rev-parse --show-toplevel`" && sh -c "$command")
     git add ${add_options[*]--u}
@@ -59,4 +84,4 @@ function --commit-message {
   fi
 }
 
-git commit -m "$MESSAGE_PREFIX`--commit-message`"
+git commit -m "~`--commit-message`"
