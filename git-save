@@ -3,6 +3,7 @@ set -e && if [[ $1 = --debug ]]; then shift && set -x; fi
 
 USAGE='git save [-u|-A] [-c COMMAND]
 git save --redo-last | --redo-since=BASE
+git save --root
 
  
 Commit changes with a standard message, given by git-summary(1).
@@ -26,24 +27,30 @@ c,command=       Commit the results of `sh -c CMD`
  
 R,redo-last      Redo the last commit from scratch
 redo-since=      Redo all git-save commits since BASE
+
+root             Create an empty root commit
  
 debug            Run in debug mode
 '
 eval "$(git rev-parse --parseopt -- "$@" <<< "$USAGE" || exit $?)"
 
-add_options=() redo_last=false
+add_options=()
+
 while test $# != 0; do
   case $1 in
     -u|-A) add_options+=($1) && shift ;;
     -c) command=$2 && shift && shift ;;
     -R) redo_last=true && shift ;;
+    --root) root=true && shift ;;
     --redo-since) redo_base=$2 && shift && shift ;;
     --) shift ;;
     *) echo Unknown option: $1 >&2 && exit 1 ;;
   esac
 done
 
-if $redo_last; then
+if [[ $root ]]; then
+  git commit --allow-empty -m\~
+elif [[ $redo_last ]]; then
   if [[ $command || $add_options ]]; then
     echo $0: -R is incompatible with -u, -A and -c >&2 && exit 1
   else
