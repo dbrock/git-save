@@ -2,7 +2,7 @@
 set -e && if [[ $1 = --debug ]]; then shift && set -x; fi
 
 USAGE='git save [-u|-A] [-c COMMAND]
-git save --redo-last | --redo-since=BASE
+git save --redo-last | --redo-since=BASE | --redo-all
 git save --root
 
  
@@ -16,7 +16,9 @@ If neither `-u`, `-A` nor `-c` were given, and the index is
 already clean, then invoke `git add -u` first.
 
 The `--redo-last` option recreates the last commit from scratch,
-whereas `--redo-since` is used to start an interactive rebase.
+whereas `--redo-since` is used to start an interactive rebase in
+which every commit is re-done.  The `--redo-all` option searches
+for a specific kind of base commit created by `git save --root`.
  
 git-save(1) prefixes all its commit messages with `~`.
 --
@@ -25,10 +27,11 @@ A                Run `git add -A` first
  
 c,command=       Commit the results of `sh -c CMD`
  
-R,redo-last      Redo the last commit from scratch
-redo-since=      Redo all git-save commits since BASE
+redo-last        Redo the last commit from scratch
+redo-since=      Redo all commits since BASE
 
-root             Create an empty root commit
+redo-all         Redo all commits since the last root commit
+root             Create a root commit (an empty commit marked `~`)
  
 debug            Run in debug mode
 '
@@ -45,9 +48,10 @@ while test $# != 0; do
   case $1 in
     -u|-A) add_options+=($1) && shift ;;
     -c) command=$2 && shift && shift ;;
-    -R) redo_last=true && shift ;;
-    --root) root=true && shift ;;
+    --redo-last) redo_last=true && shift ;;
     --redo-since) redo_base=$2 && shift && shift ;;
+    --root) root=true && shift ;;
+    --redo-all) redo_all=true && shift ;;
     --) shift ;;
     *) echo Unknown option: $1 >&2 && exit 1 ;;
   esac
