@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e && if [[ $1 = --debug ]]; then shift && set -x; fi
 
-function abort { printf '%s\n' "$*" && echo 1; }
+function abort { printf '%s\n' "$*" && exit 1; }
 
 USAGE='git save [-u|-A] [-c COMMAND]
 git save --redo-last | --redo-since=BASE
