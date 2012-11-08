@@ -43,7 +43,9 @@ eval "$(git rev-parse --parseopt -- "$@" <<< "$USAGE" || exit $?)"
 add_options=()
 
 function --make-root { git commit --allow-empty -m\~; }
-if [[ $1 == -- ]] && ! `git rev-parse HEAD >/dev/null 2>&1`; then
+function --head-attached { git rev-parse HEAD >/dev/null 2>&1; }
+
+if [[ $1 == -- ]] && ! --head-attached ; then
   echo 'git-save: inserting empty root commit' && --make-root
 fi
 
