@@ -36,6 +36,11 @@ eval "$(git rev-parse --parseopt -- "$@" <<< "$USAGE" || exit $?)"
 
 add_options=()
 
+function --root { git commit --allow-empty -m\~; }
+if [[ $1 == -- ]] && ! `git rev-parse HEAD >/dev/null 2>&1`; then
+  echo git-save: adding empty root commit && --root
+fi
+
 while test $# != 0; do
   case $1 in
     -u|-A) add_options+=($1) && shift ;;
@@ -49,7 +54,7 @@ while test $# != 0; do
 done
 
 if [[ $root ]]; then
-  git commit --allow-empty -m\~
+  --root
 elif [[ $redo_last ]]; then
   if [[ $command || $add_options ]]; then
     echo $0: -R is incompatible with -u, -A and -c >&2 && exit 1
