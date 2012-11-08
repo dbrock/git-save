@@ -1,6 +1,5 @@
 #!/bin/bash
-
-set -e
+set -e && if [[ $1 = --debug ]]; then shift && set -x; fi
 
 USAGE='git save [-u|-A] [-c COMMAND]
 git save --redo
@@ -20,68 +19,72 @@ git-save(1) prefixes all its commit messages with `~`.
 u,update         Run `git add -u` first
 A,all            Run `git add -A` first
  
-c,command        Run `sh -c COMMAND` first
+c,command=       Run `sh -c COMMAND` first
  
 R,redo           Redo the last commit
 
 debug            Run in debug mode
 '
-
 eval "$(git rev-parse --parseopt -- "$@" <<< "$USAGE" || exit $?)"
 
 add_options=() redo=false
 while test $# != 0; do
   case $1 in
     -u|-A) add_options+=($1) && shift ;;
-    -c) command=$2 && shift 2 ;;
+    -c) command=$2 && shift && shift ;;
     -R) redo=true && shift ;;
-    --debug) shift && set -x ;;
     --) shift ;;
     *) echo Unknown option: $1 >&2 && exit 1 ;;
   esac
 done
-
-function --index-clean { git diff-index --cached --quiet HEAD; }
 
 if $redo; then
   if [[ $command || $add_options ]]; then
     echo $0: -R is incompatible with -u, -A and -c >&2 && exit 1
   else
     message=`git log --format=%s -n1`
-    if [[ $message =~ ^~$\ (.*) ]]; then
+    if [[ $message =~ ^~\$\ (.*) ]]; then
       command=${BASH_REMATCH[1]}
-      echo "git-save: redoing command: $command"
+      echo "git-save:~\$ $command"
       git reset --hard HEAD^
-      git save -c "$command"
+      git save -A -c "$command"
     elif [[ $message =~ ^~(.*) ]]; then
-      summary=`git-summary HEAD HEAD^`
-      if [[ $message != "~$summary" ]]; then
+      summary=`git-summary HEAD^ HEAD`
+      if [[ $message = "~$summary" ]]; then
+        echo "git-save: patch summary up-to-date"
+      else
         echo "git-save: updating patch summary"
-        git commit --amend -m "$summary"
+        git commit --amend -m "~$summary"
       fi
     else
       :
     fi
   fi
-elif [[ $command ]]; then
-  if test -z "`git status --short`"; then
-    (cd "`git rev-parse --show-toplevel`" && sh -c "$command")
-    git add ${add_options[*]--u}
-  else
-    echo You have uncommited changes >&2 && exit 1
-  fi
-elif [[ $add_options ]]; then
-  git add ${add_options[*]}
-elif --index-clean; then
-  git add -u
-fi
+else
+  function --index-clean {
+    git diff-index --cached --quiet HEAD
+  }
 
-function --commit-message {
   if [[ $command ]]; then
-    printf '$ %s' "$command"
-  else
-    git summary --cached
+    if test -z "`git status --short`"; then
+      (cd "`git rev-parse --show-toplevel`" && sh -c "$command")
+      git add ${add_options[*]--u}
+    else
+      echo You have uncommited changes >&2 && exit 1
+    fi
+  elif [[ $add_options ]]; then
+    git add ${add_options[*]}
+  elif --index-clean; then
+    git add -u && if --index-clean; then git add -A; fi
   fi
-}
 
-git commit -m "~`--commit-message`"
+  function --commit-message {
+    if [[ $command ]]; then
+      printf '$ %s' "$command"
+    else
+      git summary --cached
+    fi
+  }
+
+  git commit -m "~`--commit-message`"
+fi
