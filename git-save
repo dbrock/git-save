@@ -88,7 +88,8 @@ if [[ $redo_last ]]; then
     echo "git-save: skip"
   fi
 elif [[ $redo_since ]]; then
-  git rebase -i -x 'git save --redo-last' $redo_since --onto $redo_since
+  git rebase -i -p --exec 'git save --redo-last' \
+    $redo_since --onto $redo_since
 elif [[ $redo_all ]]; then
   root=`git save --show-root`
   git save --redo-since=$root
