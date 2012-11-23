@@ -77,7 +77,7 @@ if [[ $redo_last ]]; then
     if git rev-parse HEAD^ >/dev/null 2>&1
     then parent=HEAD^
     else parent=`git hash-object -t tree /dev/null`; fi
-    summary=`git-summary $parent HEAD`      
+    summary=`git-summary $parent HEAD`
     if [[ $message = "~$summary" ]]; then
       echo "git-save: patch summary up-to-date"
     else
